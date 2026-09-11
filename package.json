@@ -1,0 +1,12 @@
+{
+  "name": "circular-precast-manhole-cover-designer",
+  "version": "1.0.0",
+  "private": false,
+  "type": "module",
+  "description": "Preliminary radial plate FEA and EC2 sizing tool for circular precast manhole cover slabs with openings.",
+  "scripts": {
+    "test": "node tests/ui-check.mjs && node tests/engineering-check.mjs && node tests/link-optimisation-check.mjs"
+  },
+  "license": "MIT"
+}
+

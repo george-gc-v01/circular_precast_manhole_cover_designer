@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Interactive preliminary finite-element analysis and EC2 sizing for buried circular concrete cover slabs with openings." />
+    <title>Circular Cover Slab Designer</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./extras.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div><strong>Circular Cover Slab Designer</strong><span>Preliminary plate FEA + EC2 sizing</span></div>
+      </div>
+      <div class="top-actions">
+        <span id="modelStatus" class="status status-ready">Geometry current</span>
+        <button id="saveBtn" class="button secondary">Save project</button>
+        <label class="button secondary file-button">Open project<input id="loadInput" type="file" accept="application/json" /></label>
+        <button id="analyseBtn" class="button primary">Generate mesh &amp; analyse</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="controls-panel">
+        <nav class="tabs" aria-label="Design inputs">
+          <button class="tab active" data-tab="geometry">Geometry</button>
+          <button class="tab" data-tab="openings">Openings</button>
+          <button class="tab" data-tab="loads">Loads</button>
+          <button class="tab" data-tab="mesh">Mesh</button>
+        </nav>
+
+        <section id="tab-geometry" class="tab-panel active">
+          <div class="section-heading"><h2>Slab and support</h2><button id="resetBtn" class="text-button">Restore West Cover</button></div>
+          <div class="field-grid">
+            <label>Outer radius <span><input data-path="slab.radius" type="number" step="10" /> mm</span></label>
+            <label>Thickness <span><input data-path="slab.thickness" type="number" step="10" /> mm</span></label>
+            <label>Clear manhole Ø <span><input data-path="slab.clearDiameter" type="number" step="10" /> mm</span></label>
+            <label>Bearing width <span><input data-path="slab.bearingWidth" type="number" step="10" /> mm</span></label>
+          </div>
+          <h3>Materials</h3>
+          <div class="field-grid">
+            <label>Concrete fck <span><input data-path="material.fck" type="number" step="1" /> MPa</span></label>
+            <label>Steel fyk <span><input data-path="material.fyk" type="number" step="10" /> MPa</span></label>
+            <label>Nominal cover <span><input data-path="material.cover" type="number" step="5" /> mm</span></label>
+            <label>Design bar Ø <span><select data-path="material.barDiameter"><option>12</option><option>16</option><option>20</option><option>25</option></select> mm</span></label>
+            <label>Main bar spacing <span><input data-path="material.barSpacing" type="number" step="25" /> mm</span></label>
+          </div>
+          <h3>Radial shear links</h3>
+          <div class="field-grid">
+            <label>Link diameter <span><select data-path="shearLinks.diameter"><option>8</option><option>10</option><option>12</option></select> mm</span></label>
+            <label>Legs per position <span><select data-path="shearLinks.legs"><option>1</option><option>2</option><option>4</option></select></span></label>
+            <label>Radial spacing <span><input data-path="shearLinks.radialSpacing" type="number" step="25" /> mm</span></label>
+            <label>Tangential spacing <span><input data-path="shearLinks.tangentialSpacing" type="number" step="25" /> mm</span></label>
+            <label>Zone inner radius <span><input data-path="shearLinks.zoneInner" type="number" step="25" /> mm</span></label>
+            <label>Zone outer radius <span><input data-path="shearLinks.zoneOuter" type="number" step="25" /> mm</span></label>
+            <label>Strut cot θ <span><input data-path="shearLinks.cotTheta" type="number" step="0.1" min="1" max="2.5" /></span></label>
+          </div>
+          <h3>Drawing dimensions</h3>
+          <p class="hint">These reproduce the dimensions arrowed on the supplied West Cover plan. Changes update the parametric geometry.</p>
+          <div id="drawingDimensions" class="field-grid"></div>
+        </section>
+
+        <section id="tab-openings" class="tab-panel">
+          <div class="section-heading"><h2>Openings</h2><button id="addOpeningBtn" class="button small secondary">+ Add circle</button></div>
+          <p class="hint">Select an opening in the plan or schedule. Edit its exact position and dimensions below.</p>
+          <div id="openingList" class="opening-list"></div>
+          <div id="openingEditor" class="opening-editor empty">Select an opening to edit.</div>
+        </section>
+
+        <section id="tab-loads" class="tab-panel">
+          <h2>Loading</h2>
+          <div class="field-grid">
+            <label>Soil depth <span><input data-path="loads.soilDepth" type="number" step="0.1" /> m</span></label>
+            <label>Soil unit weight <span><input data-path="loads.soilGamma" type="number" step="0.5" /> kN/m³</span></label>
+            <label>Surcharge <span><input data-path="loads.surcharge" type="number" step="1" /> kN/m²</span></label>
+            <label>Additional Gk <span><input data-path="loads.additionalG" type="number" step="1" /> kN/m²</span></label>
+            <label>Concrete unit weight <span><input data-path="loads.concreteGamma" type="number" step="0.5" /> kN/m³</span></label>
+            <label>γG <span><input data-path="loads.gammaG" type="number" step="0.05" /></span></label>
+            <label>γQ <span><input data-path="loads.gammaQ" type="number" step="0.05" /></span></label>
+          </div>
+          <div id="loadSummary" class="calculation-card"></div>
+        </section>
+
+        <section id="tab-mesh" class="tab-panel">
+          <h2>Radial FE mesh</h2>
+          <div class="field-grid">
+            <label>Radial rings <span><input data-path="mesh.rings" type="number" min="6" max="22" step="1" /></span></label>
+            <label>Sectors <span><input data-path="mesh.sectors" type="number" min="24" max="120" step="6" /></span></label>
+            <label>Hole sampling <span><select data-path="mesh.holeSampling"><option value="centroid">Centroid</option><option value="strict">Strict</option></select></span></label>
+            <label>Result smoothing <span><select data-path="mesh.designPercentile"><option value="90">90th percentile</option><option value="95">95th percentile</option><option value="98">98th percentile</option><option value="100">Raw maximum</option></select></span></label>
+          </div>
+          <div class="notice"><strong>Mesh method</strong><p>Concentric radial rings with triangular plate elements. Elements intersecting openings are removed. Increase rings and sectors for convergence.</p></div>
+          <button id="benchmarkBtn" class="button secondary wide">Run solid-plate benchmark</button>
+          <div id="benchmarkResult" class="calculation-card muted">Benchmark not yet run.</div>
+        </section>
+      </aside>
+
+      <section class="canvas-panel">
+        <div class="canvas-toolbar">
+          <div class="view-switch" role="group" aria-label="Display mode">
+            <button class="view-button active" data-view="geometry">Geometry</button>
+            <button class="view-button" data-view="mesh">Mesh</button>
+            <button class="view-button" data-view="deflection">Deflection</button>
+            <button class="view-button" data-view="moment">Design moment</button>
+            <button class="view-button" data-view="shear">Shear + links</button>
+          </div>
+          <div class="legend-wrap">
+            <div id="legend" class="legend">Dimensions in millimetres</div>
+            <div id="contourLegend" class="contour-legend hidden" aria-label="Contour colour legend">
+              <span id="legendMin">0</span><span class="legend-gradient"></span><span id="legendMax">1</span>
+            </div>
+          </div>
+        </div>
+        <div class="canvas-wrap">
+          <svg id="slabSvg" viewBox="-1900 -1900 3800 3800" role="img" aria-label="Interactive plan of circular cover slab"></svg>
+          <div id="analysisOverlay" class="analysis-overlay hidden"><span class="spinner"></span><strong>Analysing radial plate mesh</strong><small>Assembling and solving the FE system</small></div>
+        </div>
+        <div class="canvas-footer">
+          <span id="cursorReadout">x 0 mm · y 0 mm</span>
+          <span>Drag circular openings to reposition · numerical inputs remain authoritative</span>
+        </div>
+      </section>
+
+      <aside class="results-panel">
+        <div class="results-head"><div><span class="eyebrow">ACTIVE CASE</span><h2>West Cover Slab</h2></div><span class="case-pill">ULS 1.35G + 1.50Q</span></div>
+        <div id="resultCards" class="result-cards"></div>
+        <section class="result-section baseline-section">
+          <div class="section-heading"><h3>Reviewed baseline</h3><span class="baseline-tag">16 link cases</span></div>
+          <p>275 mm C32/40 slab · H16 @ 200 top and bottom, each direction · single-leg H10 positions @ 150 radial / 150 tangential from r = 600–1600 mm.</p>
+          <small>A 260 mm numerical lower bound was not adopted because its refined-mesh flexural utilisation was 0.99. Inputs remain editable; rerun after changes.</small>
+        </section>
+        <section class="result-section">
+          <div class="section-heading"><h3>Suggested reinforcement</h3><span class="prelim-tag">Preliminary</span></div>
+          <div id="reinforcementSummary" class="reinforcement-summary"></div>
+        </section>
+        <section class="result-section">
+          <div class="section-heading"><h3>Quick hand checks</h3><span class="prelim-tag">EC2</span></div>
+          <div id="handChecks" class="hand-checks"></div>
+        </section>
+        <section class="result-section">
+          <h3>Dimension check</h3>
+          <div id="dimensionChecks" class="check-list"></div>
+        </section>
+        <section class="result-section">
+          <h3>Engineering review</h3>
+          <div id="warnings" class="warning-list"></div>
+        </section>
+        <section class="disclaimer">
+          <strong>Preliminary engineering tool</strong>
+          <p>Results require mesh convergence and independent verification in validated structural-analysis software. Local opening detailing, bearing, lifting, anchorage and temporary conditions remain designer checks.</p>
+        </section>
+      </aside>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
